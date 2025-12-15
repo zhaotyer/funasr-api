@@ -100,6 +100,18 @@ class BaseASREngine(ABC):
         """转录音频文件"""
         pass
 
+    @abstractmethod
+    def transcribe_file_with_vad(
+        self,
+        audio_path: str,
+        hotwords: str = "",
+        enable_punctuation: bool = True,
+        enable_itn: bool = True,
+        sample_rate: int = 16000,
+    ) -> ASRRawResult:
+        """使用 VAD 转录音频文件，返回带时间戳分段的结果"""
+        pass
+
     def transcribe_long_audio(
         self,
         audio_path: str,
@@ -291,6 +303,7 @@ class FunASREngine(RealTimeASREngine):
         punc_model: Optional[str] = None,
         punc_model_revision: str = "v2.0.4",
         punc_realtime_model: Optional[str] = None,
+        enable_lm: bool = True,
     ):
         self.offline_model: Optional[AutoModel] = None
         self.realtime_model: Optional[AutoModel] = None
@@ -308,6 +321,12 @@ class FunASREngine(RealTimeASREngine):
         self.punc_model = punc_model or settings.PUNC_MODEL
         self.punc_model_revision = punc_model_revision
         self.punc_realtime_model = punc_realtime_model or settings.PUNC_REALTIME_MODEL
+
+        # 语言模型配置
+        self.enable_lm = enable_lm and settings.ASR_ENABLE_LM
+        self.lm_model = settings.LM_MODEL if self.enable_lm else None
+        self.lm_weight = settings.LM_WEIGHT
+        self.lm_beam_size = settings.LM_BEAM_SIZE
 
         self._load_models_based_on_mode()
 
@@ -337,7 +356,7 @@ class FunASREngine(RealTimeASREngine):
             raise DefaultServerErrorException(f"不支持的ASR_MODEL_MODE: {mode}")
 
     def _load_offline_model(self) -> None:
-        """加载离线FunASR模型（不再内嵌VAD/PUNC，改用全局实例）"""
+        """加载离线FunASR模型（支持LM语言模型）"""
         try:
             logger.info(f"正在加载离线FunASR模型: {self.offline_model_path}")
 
@@ -347,8 +366,19 @@ class FunASREngine(RealTimeASREngine):
                 **settings.FUNASR_AUTOMODEL_KWARGS,
             }
 
+            # 添加语言模型支持
+            if self.enable_lm and self.lm_model:
+                logger.info(f"启用语言模型: {self.lm_model}")
+                model_kwargs["lm_model"] = self.lm_model
+                model_kwargs["lm_model_revision"] = settings.LM_MODEL_REVISION
+                model_kwargs["beam_size"] = self.lm_beam_size
+
             self.offline_model = AutoModel(**model_kwargs)
-            logger.info("离线FunASR模型加载成功（VAD/PUNC将按需使用全局实例）")
+
+            if self.enable_lm and self.lm_model:
+                logger.info("离线FunASR模型加载成功（已启用LM语言模型）")
+            else:
+                logger.info("离线FunASR模型加载成功（VAD/PUNC将按需使用全局实例）")
 
         except Exception as e:
             raise DefaultServerErrorException(f"离线FunASR模型加载失败: {str(e)}")
@@ -425,18 +455,30 @@ class FunASREngine(RealTimeASREngine):
                     temp_automodel.punc_kwargs = punc_model_instance.kwargs
 
                 logger.debug("临时AutoModel构建完成，调用generate")
-                result = temp_automodel.generate(
-                    input=audio_path,
-                    hotword=hotwords if hotwords else None,
-                    cache={},
-                )
+                generate_kwargs: Dict[str, Any] = {
+                    "input": audio_path,
+                    "cache": {},
+                }
+                if hotwords:
+                    generate_kwargs["hotword"] = hotwords
+                # 如果启用了LM，添加LM权重参数
+                if self.enable_lm:
+                    generate_kwargs["lm_weight"] = self.lm_weight
+
+                result = temp_automodel.generate(**generate_kwargs)
             else:
                 # 不使用VAD，直接识别
-                result = self.offline_model.generate(
-                    input=audio_path,
-                    hotword=hotwords if hotwords else None,
-                    cache={},
-                )
+                generate_kwargs: Dict[str, Any] = {
+                    "input": audio_path,
+                    "cache": {},
+                }
+                if hotwords:
+                    generate_kwargs["hotword"] = hotwords
+                # 如果启用了LM，添加LM权重参数
+                if self.enable_lm:
+                    generate_kwargs["lm_weight"] = self.lm_weight
+
+                result = self.offline_model.generate(**generate_kwargs)
 
                 # 如果启用了PUNC但没有VAD，需要手动应用PUNC
                 if need_punc and result and len(result) > 0:
@@ -522,11 +564,17 @@ class FunASREngine(RealTimeASREngine):
                 temp_automodel.punc_kwargs = punc_model_instance.kwargs
 
             # 调用识别
-            result = temp_automodel.generate(
-                input=audio_path,
-                hotword=hotwords if hotwords else None,
-                cache={},
-            )
+            generate_kwargs: Dict[str, Any] = {
+                "input": audio_path,
+                "cache": {},
+            }
+            if hotwords:
+                generate_kwargs["hotword"] = hotwords
+            # 如果启用了LM，添加LM权重参数
+            if self.enable_lm:
+                generate_kwargs["lm_weight"] = self.lm_weight
+
+            result = temp_automodel.generate(**generate_kwargs)
 
             # 解析结果
             segments: List[ASRSegmentResult] = []

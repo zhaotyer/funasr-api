@@ -100,7 +100,7 @@ async def get_asr_params(request: Request) -> ASRQueryParams:
 2. **URL 下载**：通过 `audio_address` 参数指定音频文件 URL
 
 ## 注意事项
-- `vocabulary_id` 参数暂未实现，保留用于未来热词功能
+- `vocabulary_id` 参数用于传递热词，格式：`热词1 权重1 热词2 权重2`（如：`阿里巴巴 20 腾讯 15`）
 - 音频会自动转换为 16kHz 采样率进行识别
 """,
     openapi_extra={
@@ -146,8 +146,12 @@ async def get_asr_params(request: Request) -> ASRQueryParams:
                 "name": "vocabulary_id",
                 "in": "query",
                 "required": False,
-                "schema": {"type": "string", "maxLength": 32, "example": ""},
-                "description": "热词表 ID（暂未实现，保留参数）",
+                "schema": {
+                    "type": "string",
+                    "maxLength": 512,
+                    "example": "阿里巴巴 20 腾讯 15",
+                },
+                "description": "热词字符串，格式：`热词1 权重1 热词2 权重2`。权重范围 1-100，建议 10-30。可提升特定词汇的识别准确率",
             },
             {
                 "name": "audio_address",
@@ -271,8 +275,8 @@ async def asr_transcribe(
         logger.info(f"[{task_id}] ASR模型加载完成: {params.model_id or '默认'}")
         sys.stdout.flush()
 
-        # 准备热词（如果有vocabulary_id，这里可以根据ID查询热词）
-        hotwords = ""  # 实际项目中可以根据vocabulary_id查询对应的热词
+        # 准备热词（vocabulary_id 参数直接传递热词字符串）
+        hotwords = params.vocabulary_id or ""
 
         # 使用线程池执行模型推理，避免阻塞事件循环
         # 使用长音频识别方法，自动处理超过60秒的音频

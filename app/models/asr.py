@@ -41,8 +41,8 @@ class ASRQueryParams(BaseModel):
 
     vocabulary_id: Optional[str] = Field(
         default=None,
-        description="热词表ID，用于提高特定词汇的识别准确率",
-        max_length=32,
+        description="热词字符串，格式：热词1 权重1 热词2 权重2（如：阿里巴巴 20 腾讯 15）",
+        max_length=512,
     )
 
     audio_address: Optional[str] = Field(

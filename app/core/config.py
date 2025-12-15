@@ -62,6 +62,13 @@ class Settings:
         "iic/punc_ct-transformer_zh-cn-common-vad_realtime-vocab272727"
     )
 
+    # 语言模型配置
+    LM_MODEL: str = "iic/speech_ngram_lm_zh-cn-ai-wesp-fst"
+    LM_MODEL_REVISION: str = "v2.0.4"
+    LM_WEIGHT: float = 0.15  # 语言模型权重，建议范围 0.1-0.3
+    LM_BEAM_SIZE: int = 10  # 语言模型解码 beam size
+    ASR_ENABLE_LM: bool = True  # 是否启用语言模型（默认启用）
+
     # 流式ASR远场过滤配置
     ASR_ENABLE_NEARFIELD_FILTER: bool = True  # 是否启用远场声音过滤
     ASR_NEARFIELD_RMS_THRESHOLD: float = 0.01  # RMS能量阈值（宽松模式，适合大多数场景）
@@ -105,6 +112,13 @@ class Settings:
         self.AUTO_LOAD_CUSTOM_ASR_MODELS = os.getenv(
             "AUTO_LOAD_CUSTOM_ASR_MODELS", self.AUTO_LOAD_CUSTOM_ASR_MODELS
         )
+
+        # 语言模型配置
+        self.ASR_ENABLE_LM = (
+            os.getenv("ASR_ENABLE_LM", "true").lower() == "true"
+        )
+        self.LM_WEIGHT = float(os.getenv("LM_WEIGHT", str(self.LM_WEIGHT)))
+        self.LM_BEAM_SIZE = int(os.getenv("LM_BEAM_SIZE", str(self.LM_BEAM_SIZE)))
 
         # 远场过滤配置
         self.ASR_ENABLE_NEARFIELD_FILTER = (

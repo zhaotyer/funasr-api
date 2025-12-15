@@ -19,8 +19,8 @@ def download_models():
 
     # 所有需要下载的模型列表
     models = [
-        # Paraformer Large (默认模型)
-        ("iic/speech_paraformer-large_asr_nat-zh-cn-16k-common-vocab8404-pytorch", "Paraformer Large Offline"),
+        # Paraformer Large (默认模型) - 一体化版本，内置VAD+标点+时间戳
+        ("iic/speech_paraformer-large-vad-punc_asr_nat-zh-cn-16k-common-vocab8404-pytorch", "Paraformer Large Offline (VAD+PUNC)"),
         ("iic/speech_paraformer-large_asr_nat-zh-cn-16k-common-vocab8404-online", "Paraformer Large Online/Realtime"),
         # SenseVoice Small
         ("iic/SenseVoiceSmall", "SenseVoice Small"),
@@ -29,6 +29,8 @@ def download_models():
         # 标点模型
         ("iic/punc_ct-transformer_zh-cn-common-vocab272727-pytorch", "Punctuation Model"),
         ("iic/punc_ct-transformer_zh-cn-common-vad_realtime-vocab272727", "Realtime Punctuation Model"),
+        # 语言模型 (LM) - 用于提升识别准确率
+        ("iic/speech_ngram_lm_zh-cn-ai-wesp-fst", "Language Model (N-gram LM)"),
     ]
 
     print("=" * 60)

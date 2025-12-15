@@ -3,14 +3,14 @@
         "paraformer-large": {
             "name": "Paraformer Large",
             "engine": "funasr",
-            "description": "高精度中文语音识别模型",
+            "description": "高精度中文语音识别模型（内置VAD+标点+时间戳）",
             "languages": [
                 "zh"
             ],
             "default": true,
             "supports_realtime": true,
             "models": {
-                "offline": "iic/speech_paraformer-large_asr_nat-zh-cn-16k-common-vocab8404-pytorch",
+                "offline": "iic/speech_paraformer-large-vad-punc_asr_nat-zh-cn-16k-common-vocab8404-pytorch",
                 "realtime": "iic/speech_paraformer-large_asr_nat-zh-cn-16k-common-vocab8404-online"
             }
         },
