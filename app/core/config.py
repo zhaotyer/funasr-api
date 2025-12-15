@@ -68,7 +68,7 @@ class Settings:
     ASR_NEARFIELD_FILTER_LOG_ENABLED: bool = True  # 是否记录过滤日志（默认启用）
 
     # 音频处理配置
-    MAX_AUDIO_SIZE: int = 100 * 1024 * 1024  # 100MB
+    MAX_AUDIO_SIZE: int = 300 * 1024 * 1024  # 300MB
 
     def __init__(self):
         """从环境变量读取配置"""
@@ -117,6 +117,11 @@ class Settings:
         )
         self.ASR_NEARFIELD_FILTER_LOG_ENABLED = (
             os.getenv("ASR_NEARFIELD_FILTER_LOG_ENABLED", "true").lower() == "true"
+        )
+
+        # 音频处理配置
+        self.MAX_AUDIO_SIZE = int(
+            os.getenv("MAX_AUDIO_SIZE", str(self.MAX_AUDIO_SIZE))
         )
 
     def _ensure_directories(self):

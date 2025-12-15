@@ -155,7 +155,19 @@ def map_model_id(model: str) -> Optional[str]:
     "/models",
     response_model=ModelsResponse,
     summary="列出可用模型",
-    description="返回当前可用的 ASR 模型列表",
+    description="""返回当前可用的 ASR 模型列表（OpenAI `/v1/models` 兼容）。
+
+**可用模型：**
+
+| 模型 ID | 说明 |
+|---------|------|
+| `paraformer-large` | 高精度中文 ASR，支持标点和 ITN（默认） |
+| `sensevoice-small` | 多语言 ASR，支持语种检测和情感识别 |
+
+**兼容性说明：**
+- `whisper-1` 等 OpenAI 模型 ID 会自动映射到默认模型
+- 支持 OpenAI SDK 和第三方客户端调用
+""",
 )
 async def list_models(request: Request):
     """列出可用模型 (OpenAI 兼容)"""
@@ -184,44 +196,92 @@ async def list_models(request: Request):
 @router.post(
     "/audio/transcriptions",
     summary="音频转写",
-    description="将音频转写为文本 (OpenAI Audio API 兼容)",
+    description="""将音频文件转写为文本（完全兼容 OpenAI Audio API）。
+
+**支持的音频格式：**
+`mp3`, `mp4`, `mpeg`, `mpga`, `m4a`, `wav`, `webm`, `flac`, `ogg`, `amr`, `pcm`
+
+**文件大小限制：**
+- 最大支持 300MB（可通过 `MAX_AUDIO_SIZE` 环境变量配置）
+- OpenAI 原生限制为 25MB
+
+**输出格式：**
+| 格式 | Content-Type | 说明 |
+|------|-------------|------|
+| `json` | application/json | 简单 JSON，仅含 text 字段（默认） |
+| `text` | text/plain | 纯文本 |
+| `verbose_json` | application/json | 详细 JSON，含时间戳和分段 |
+| `srt` | text/plain | SRT 字幕格式 |
+| `vtt` | text/vtt | WebVTT 字幕格式 |
+
+**模型映射：**
+- `whisper-1` → 使用默认模型 (paraformer-large)
+- `paraformer-large` → 高精度中文 ASR
+- `sensevoice-small` → 多语言 ASR
+
+**暂不支持的参数：**
+`prompt`、`temperature`、`timestamp_granularities` 参数已保留但暂不生效
+""",
     responses={
         200: {
             "description": "转写成功",
             "content": {
                 "application/json": {
-                    "example": {"text": "转写的文本内容"}
+                    "example": {"text": "今天天气不错，明天可能会下雨。"}
                 },
                 "text/plain": {
-                    "example": "转写的文本内容"
+                    "example": "今天天气不错，明天可能会下雨。"
                 },
+            },
+        },
+        400: {
+            "description": "请求错误",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "File too large. Maximum size is 300MB"}
+                }
+            },
+        },
+        401: {
+            "description": "认证失败",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Invalid API key"}
+                }
             },
         },
     },
 )
 async def create_transcription(
     request: Request,
-    file: UploadFile = File(..., description="要转写的音频文件"),
-    model: str = Form("whisper-1", description="模型 ID"),
-    language: Optional[str] = Form(None, description="音频的语言 (ISO-639-1 格式)"),
-    prompt: Optional[str] = Form(None, description="可选的提示文本（暂不支持）"),  # noqa: ARG001
+    file: UploadFile = File(
+        ...,
+        description="要转写的音频文件，支持 mp3/wav/flac/ogg/m4a/amr/pcm 等格式"
+    ),
+    model: str = Form(
+        "whisper-1",
+        description="模型 ID（whisper-1/paraformer-large/sensevoice-small）",
+        examples=["whisper-1", "paraformer-large", "sensevoice-small"],
+    ),
+    language: Optional[str] = Form(
+        None,
+        description="音频语言代码（ISO-639-1），如 zh/en/ja，不填则自动检测",
+        examples=["zh", "en", "ja"],
+    ),
+    prompt: Optional[str] = Form(None, description="提示文本（暂不支持，保留兼容）"),  # noqa: ARG001
     response_format: ResponseFormat = Form(
         ResponseFormat.JSON,
-        description="输出格式: json, text, srt, verbose_json, vtt"
+        description="输出格式",
+        examples=["json", "text", "verbose_json", "srt", "vtt"],
     ),
-    temperature: Optional[float] = Form(0, description="采样温度（暂不支持）"),  # noqa: ARG001
+    temperature: Optional[float] = Form(0, description="采样温度（暂不支持，保留兼容）"),  # noqa: ARG001
     timestamp_granularities: Optional[List[str]] = Form(  # noqa: ARG001
         None,
         alias="timestamp_granularities[]",
-        description="时间戳粒度（暂不支持）"
+        description="时间戳粒度（暂不支持，保留兼容）"
     ),
 ):
-    """
-    音频转写 API (OpenAI 兼容)
-
-    支持的音频格式: mp3, mp4, mpeg, mpga, m4a, wav, webm, flac, ogg
-    最大文件大小: 25MB (OpenAI 限制) / 100MB (FunASR-API 扩展)
-    """
+    """音频转写 API (OpenAI Audio API 兼容)"""
     # 标记暂不支持的参数（保留以兼容 OpenAI API）
     _ = (prompt, temperature, timestamp_granularities)
 

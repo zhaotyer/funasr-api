@@ -78,10 +78,31 @@ async def get_asr_params(request: Request) -> ASRQueryParams:
             "description": "请求参数错误",
             "model": ASRErrorResponse,
         },
+        401: {"description": "认证失败", "model": ASRErrorResponse},
         500: {"description": "服务器内部错误", "model": ASRErrorResponse},
     },
-    summary="一句话识别",
-    description="语音识别RESTful API",
+    summary="语音识别（支持长音频）",
+    description="""
+将音频文件转写为文本，兼容阿里云语音识别 RESTful API。
+
+## 功能特性
+- 支持多种音频格式：WAV, MP3, M4A, FLAC, OGG, AAC, AMR 等
+- 自动音频格式检测和转换
+- 支持长音频自动分段识别（返回带时间戳的分段结果）
+- 最大文件大小：300MB（可通过环境变量 MAX_AUDIO_SIZE 配置）
+
+## 可用模型
+- **paraformer-large**（默认）：高精度中文语音识别
+- **sensevoice-small**：通用语音识别，支持中英文混合
+
+## 音频输入方式
+1. **请求体上传**：将音频二进制数据作为请求体发送
+2. **URL 下载**：通过 `audio_address` 参数指定音频文件 URL
+
+## 注意事项
+- `vocabulary_id` 参数暂未实现，保留用于未来热词功能
+- 音频会自动转换为 16kHz 采样率进行识别
+""",
     openapi_extra={
         "parameters": [
             {
@@ -92,9 +113,9 @@ async def get_asr_params(request: Request) -> ASRQueryParams:
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 64,
-                    "example": "your_app_key_here",
+                    "example": "default",
                 },
-                "description": "应用Appkey，用于API调用认证",
+                "description": "应用 Appkey，用于 API 调用认证。未配置 APPKEY 环境变量时可忽略",
             },
             {
                 "name": "model_id",
@@ -103,9 +124,11 @@ async def get_asr_params(request: Request) -> ASRQueryParams:
                 "schema": {
                     "type": "string",
                     "maxLength": 64,
+                    "default": "paraformer-large",
+                    "enum": ["paraformer-large", "sensevoice-small"],
                     "example": "paraformer-large",
                 },
-                "description": "ASR模型ID，不指定则使用默认模型(paraformer-large)",
+                "description": "ASR 模型 ID。可选值：paraformer-large（默认，高精度中文）、sensevoice-small（中英混合）",
             },
             {
                 "name": "sample_rate",
@@ -117,14 +140,14 @@ async def get_asr_params(request: Request) -> ASRQueryParams:
                     "default": 16000,
                     "example": 16000,
                 },
-                "description": f"音频采样率（Hz）。支持: {', '.join(map(str, SampleRate.get_enums()))}",
+                "description": "音频采样率（Hz），实际识别时会自动转换为 16kHz。支持：8000, 16000, 22050, 24000",
             },
             {
                 "name": "vocabulary_id",
                 "in": "query",
                 "required": False,
-                "schema": {"type": "string", "maxLength": 32, "example": "vocab_12345"},
-                "description": "热词表ID，用于提高特定词汇的识别准确率",
+                "schema": {"type": "string", "maxLength": 32, "example": ""},
+                "description": "热词表 ID（暂未实现，保留参数）",
             },
             {
                 "name": "audio_address",
@@ -133,9 +156,9 @@ async def get_asr_params(request: Request) -> ASRQueryParams:
                 "schema": {
                     "type": "string",
                     "maxLength": 512,
-                    "example": "https://example.com/audio.wav",
+                    "example": "",
                 },
-                "description": "音频文件下载链接（HTTP/HTTPS），格式自动识别",
+                "description": "音频文件 URL（HTTP/HTTPS）。指定此参数时，将从 URL 下载音频而非读取请求体",
             },
             {
                 "name": "X-NLS-Token",
@@ -143,15 +166,15 @@ async def get_asr_params(request: Request) -> ASRQueryParams:
                 "required": False,
                 "schema": {
                     "type": "string",
-                    "minLength": 10,
+                    "minLength": 1,
                     "maxLength": 256,
-                    "example": "your_access_token_here",
+                    "example": "",
                 },
-                "description": "访问令牌，用于身份认证",
+                "description": "访问令牌，用于身份认证。未配置 APPTOKEN 环境变量时可忽略",
             },
         ],
         "requestBody": {
-            "description": "音频文件的二进制数据（当不使用audio_address参数时），格式自动识别",
+            "description": "音频文件二进制数据。支持格式：WAV, MP3, M4A, FLAC, OGG, AAC, AMR 等。不使用 audio_address 参数时必需",
             "content": {
                 "application/octet-stream": {
                     "schema": {"type": "string", "format": "binary"}
@@ -328,8 +351,18 @@ async def asr_transcribe(
 @router.get(
     "/asr/health",
     response_model=ASRHealthCheckResponse,
-    summary="ASR服务健康检查",
-    description="检查语音识别服务的运行状态",
+    summary="ASR 服务健康检查",
+    description="""
+检查语音识别服务的运行状态和资源使用情况。
+
+## 返回信息
+- **status**: 服务状态（healthy/unhealthy/error）
+- **model_loaded**: 默认模型是否已加载
+- **device**: 当前推理设备（cuda:0/cpu）
+- **loaded_models**: 已加载的模型列表
+- **memory_usage**: GPU 显存使用情况（仅 GPU 模式）
+- **asr_model_mode**: 当前模型加载模式（offline/realtime/all）
+""",
 )
 async def health_check(request: Request):
     """ASR服务健康检查端点"""
@@ -382,7 +415,22 @@ async def health_check(request: Request):
     "/asr/models",
     response_model=ASRModelsResponse,
     summary="获取可用模型列表",
-    description="返回系统中所有可用的ASR模型信息",
+    description="""
+返回系统中所有可用的 ASR 模型信息。
+
+## 可用模型
+
+| 模型 ID | 名称 | 说明 | 支持实时 |
+|---------|------|------|----------|
+| paraformer-large | Paraformer Large | 高精度中文语音识别（默认） | ✅ |
+| sensevoice-small | SenseVoice Small | 通用语音识别，支持中英文混合 | ❌ |
+
+## 返回信息
+- **models**: 模型详细信息列表
+- **total**: 可用模型总数
+- **loaded_count**: 已加载到内存的模型数量
+- **asr_model_mode**: 当前模型加载模式
+""",
 )
 async def list_models(request: Request):
     """获取可用模型列表端点"""
