@@ -1,7 +1,5 @@
 <div align="center">
 
-![FunASR-API](./docs/images/banner.png)
-
   <h3>开箱即用的本地私有化部署语音识别服务</h3>
 
 基于 FunASR 的语音识别 API 服务，提供高精度中文语音识别(ASR)功能，兼容阿里云语音 API 和 OpenAI Audio API。
