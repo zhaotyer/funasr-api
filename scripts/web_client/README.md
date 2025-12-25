@@ -1,4 +1,4 @@
-这是一个Web Server，用来测试funasr-api提供的/ws/v1/asr webdocket接口服务
+这是一个Web Server，用来测试funasr-api提供的/ws/v1/asr websocket接口服务
 # 启动服务
 ```
 python start.py
