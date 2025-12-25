@@ -1,7 +1,16 @@
 <!--
-FunASR-Nano-2512 ASR Web Client
-作者：凌封
-来源：https://aibook.ren (AI全书)
+Client Web Server for funasr-api
+
+Originally inspired by:
+  FunASR-Nano-2512 Client Web Server
+  Author: 凌封
+  Source: https://aibook.ren (AI全书)
+
+The current implementation has been significantly modified
+and extended for this project.
+Main modifications:
+  - Adapted the client-side WebSocket logic to be compatible with
+    Alibaba Cloud ASR WebSocket API
 -->
 <!DOCTYPE html>
 <html lang="zh-CN">
@@ -9,7 +18,7 @@ FunASR-Nano-2512 ASR Web Client
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Xiaozhi ASR Web Client</title>
+    <title>FUN ASR Web Client</title>
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -145,7 +154,7 @@ FunASR-Nano-2512 ASR Web Client
 <body>
 
     <div class="container">
-        <h1>Fun-ASR-Nano-2512 实时测试</h1>
+        <h1>FunASR-Api</h1>
 
         <div class="config-panel">
             <div class="input-group">
